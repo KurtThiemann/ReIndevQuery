@@ -19,7 +19,7 @@ foxloader {
     modVersion = project.version
     modDesc = "A mod that adds support for the query protocol to ReIndev."
     clientMod = "io.thiemann.kurt.query.QueryModClient"
-    serverMod = "io.thiemann.kurt.query.QueryModClient"
+    serverMod = "io.thiemann.kurt.query.QueryModServer"
     // Development tools don't like that both client and server define
     // the same classes, so uncomment to disable the side inclusion.
     // includeClient = false
