@@ -10,6 +10,7 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketException;
+import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
@@ -126,7 +127,7 @@ public class QueryServer {
 
         //only return written length as byte array
         byte[] response = new byte[buffer.position()];
-        buffer.rewind();
+        ((Buffer) buffer).rewind();
         buffer.get(response);
         return response;
     }
@@ -189,7 +190,7 @@ public class QueryServer {
 
         //only return written length as byte array
         byte[] response = new byte[buffer.position()];
-        buffer.rewind();
+        ((Buffer) buffer).rewind();
         buffer.get(response);
         return response;
     }
