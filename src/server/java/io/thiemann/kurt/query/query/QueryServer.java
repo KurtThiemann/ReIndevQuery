@@ -1,42 +1,43 @@
 package io.thiemann.kurt.query.query;
 
+import com.fox2code.foxloader.network.NetworkPlayer;
+import io.thiemann.kurt.query.query.packet.*;
 import net.minecraft.server.MinecraftServer;
-import org.luaj.vm2.ast.Str;
-
-import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.net.DatagramPacket;
-import java.net.DatagramSocket;
-import java.net.InetAddress;
-import java.net.SocketException;
-import java.nio.Buffer;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.nio.charset.StandardCharsets;
+import java.net.*;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
-//Async udp server to handle Minecraft query requests
+
 public class QueryServer {
-    private static final byte[] challenge = "9513307\0".getBytes();
     private final MinecraftServer server;
     private final DatagramSocket socket;
     private final Thread thread;
+    private final Map<String, Integer> challenges = new ConcurrentHashMap<>();
+    private long lastChallengeClear = 0;
 
     public QueryServer(MinecraftServer server, int port, InetAddress laddr) throws SocketException {
         this.server = server;
         this.socket = new DatagramSocket(port, laddr);
         this.thread = new Thread(this::run);
         this.thread.start();
+
     }
 
     private void run() {
         while (!this.socket.isClosed()) {
+            if (System.currentTimeMillis() - this.lastChallengeClear > 30000) {
+                this.challenges.clear();
+                this.lastChallengeClear = System.currentTimeMillis();
+            }
+
             try {
                 byte[] buf = new byte[1024];
                 DatagramPacket packet = new DatagramPacket(buf, buf.length);
                 this.socket.receive(packet);
                 this.handlePacket(packet);
-            } catch (IOException ignored) {}
+            } catch (IOException ignored) {
+            }
         }
     }
 
@@ -44,155 +45,93 @@ public class QueryServer {
      * Handle incoming packet
      * <a href="https://wiki.vg/Query#Client_to_Server_Packet_Format">Packet format</a>
      *
-     * @param packet incoming packet
+     * @param msg incoming packet
      */
-    private void handlePacket(DatagramPacket packet) {
-        ByteBuffer buffer = ByteBuffer.wrap(packet.getData());
-        buffer.order(ByteOrder.BIG_ENDIAN);
-        short magic = buffer.getShort();
-        if (magic != (short)0xFEFD) {
-            return;
-        }
-        byte type = buffer.get();
-        int sessionId = buffer.getInt();
-        if (type == 9) {
-            //send handshake response
-            byte[] response = makeHandshakeResponse(sessionId);
-            DatagramPacket responsePacket = new DatagramPacket(response, response.length, packet.getAddress(), packet.getPort());
-            try {
-                this.socket.send(responsePacket);
-            } catch (IOException ignored) {}
-        }
-
-        if(type != 0) {
+    private void handlePacket(DatagramPacket msg) {
+        ServerBoundPacket packet;
+        try {
+            packet = ServerBoundPacket.fromBuffer(msg.getData(), msg.getLength());
+        } catch (QueryProtocolException e) {
             return;
         }
 
-        //get payload as byte array
-        byte[] payload = new byte[packet.getLength() - 7];
-        boolean isFull = payload.length == 8;
-
-        byte[] response;
-        if(isFull) {
-            //send full stat response
-            response = makeFullStatResponse(sessionId);
+        ClientBoundPacket response;
+        if (packet instanceof ServerBoundHandshakePacket) {
+            response = this.handshake((ServerBoundHandshakePacket) packet, msg.getSocketAddress());
+        } else if (packet instanceof ServerBoundStatPacket) {
+            if (((ServerBoundStatPacket) packet).isFull()) {
+                response = this.fullStat((ServerBoundStatPacket) packet, msg.getSocketAddress());
+            } else {
+                response = this.basicStat((ServerBoundStatPacket) packet, msg.getSocketAddress());
+            }
         } else {
-            //send basic stat response
-            response = makeBasicStatResponse(sessionId);
+            return;
         }
 
-        DatagramPacket responsePacket = new DatagramPacket(response, response.length, packet.getAddress(), packet.getPort());
+        if (response == null) {
+            return;
+        }
+
+        byte[] payload = response.serialize();
+        DatagramPacket responsePacket = new DatagramPacket(payload, payload.length, msg.getSocketAddress());
         try {
             this.socket.send(responsePacket);
-        } catch (IOException ignored) {}
+        } catch (IOException ignored) {
+        }
     }
 
-    /**
-     * Generate a Handshake response
-     * <a href="https://wiki.vg/Query#Response">Packet format</a>
-     * Instead of an actual challenge we just send a constant value
-     *
-     * @param sessionId session id
-     * @return payload
-     */
-    private byte[] makeHandshakeResponse(int sessionId) {
-        ByteBuffer buffer = ByteBuffer.allocate(13);
-        buffer.order(ByteOrder.BIG_ENDIAN);
-        buffer.put((byte)9);
-        buffer.putInt(sessionId);
-        buffer.put(challenge);
-        return buffer.array();
+    private ClientBoundHandshakePacket handshake(ServerBoundHandshakePacket packet, SocketAddress address) {
+        int randomToken = ((int) (Math.random() * 1000000)) & 0x0F0F0F0F;
+        this.challenges.put(address.toString(), randomToken);
+
+        return new ClientBoundHandshakePacket(packet.getSessionId(), randomToken);
     }
 
-    /**
-     * Generate a basic stat response
-     * <a href="https://wiki.vg/Query#Response_2">Packet format</a>
-     *
-     * @param sessionId session id
-     * @return payload
-     */
-    private byte[] makeBasicStatResponse(int sessionId) {
-        ByteBuffer buffer = ByteBuffer.allocate(1024);
-        buffer.order(ByteOrder.BIG_ENDIAN);
-        buffer.put((byte)0);
-        buffer.putInt(sessionId);
-        buffer.put((this.server.getMotd() + "\0").getBytes(StandardCharsets.UTF_8));
-        buffer.put("SMP\0".getBytes());
-        buffer.put("world\0".getBytes());
-        buffer.put((this.server.configManager.playersOnline() + "\0").getBytes());
-        buffer.put((this.server.configManager.getMaxPlayers() + "\0").getBytes());
-        buffer.order(ByteOrder.LITTLE_ENDIAN);
-        buffer.putShort((short)this.getMinecraftServerPort());
-        buffer.put((this.getMinecraftServerIp() + "\0").getBytes());
+    private ClientBoundBasicStatPacket basicStat(ServerBoundStatPacket packet, SocketAddress address) {
+        if (!this.challenges.containsKey(address.toString())) {
+            return null;
+        }
 
-        //only return written length as byte array
-        byte[] response = new byte[buffer.position()];
-        ((Buffer) buffer).rewind();
-        buffer.get(response);
-        return response;
+        if (packet.getChallenge() != this.challenges.get(address.toString())) {
+            return null;
+        }
+
+        return new ClientBoundBasicStatPacket(
+                packet.getSessionId(),
+                this.server.getMotd(),
+                "SMP",
+                "world",
+                this.server.configManager.playersOnline(),
+                this.server.configManager.getMaxPlayers(),
+                this.getMinecraftServerPort(),
+                this.getMinecraftServerIp()
+        );
     }
 
-    /**
-     * Generate a full stat response
-     * <a href="https://wiki.vg/Query#Response_3">Packet format</a>
-     *
-     * @param sessionId session id
-     * @return payload
-     */
-    private byte[] makeFullStatResponse(int sessionId) {
-        ByteBuffer buffer = ByteBuffer.allocate(1024);
-        buffer.order(ByteOrder.BIG_ENDIAN);
-        buffer.put((byte)0);
-        buffer.putInt(sessionId);
-        buffer.put(new byte[] {0x73, 0x70, 0x6C, 0x69, 0x74, 0x6E, 0x75, 0x6D, 0x00, (byte)0x80, 0x00});
+    private ClientBoundFullStatPacket fullStat(ServerBoundStatPacket packet, SocketAddress address) {
+        if (!this.challenges.containsKey(address.toString())) {
+            return null;
+        }
 
-        buffer.put("hostname\0".getBytes());
-        buffer.put((this.server.getMotd() + "\0").getBytes(StandardCharsets.UTF_8));
+        if (packet.getChallenge() != this.challenges.get(address.toString())) {
+            System.out.println("Wrong challenge: " + packet.getChallenge() + " != " + this.challenges.get(address.toString()) + " (" + address.toString() + ")");
+            return null;
+        }
 
-        buffer.put("gametype\0".getBytes());
-        buffer.put("SMP\0".getBytes());
-
-        buffer.put("game_id\0".getBytes());
-        buffer.put("MINECRAFT\0".getBytes());
-
-        buffer.put("version\0".getBytes());
-        buffer.put("Beta 1.7\0".getBytes());
-
-        buffer.put("plugins\0".getBytes());
-        buffer.put("FoxLoader\0".getBytes());
-
-        buffer.put("map\0".getBytes());
-        buffer.put("world\0".getBytes());
-
-        buffer.put("numplayers\0".getBytes());
-        buffer.put((this.server.configManager.playersOnline() + "\0").getBytes());
-
-        buffer.put("maxplayers\0".getBytes());
-        buffer.put((this.server.configManager.getMaxPlayers() + "\0").getBytes());
-
-        buffer.put("hostport\0".getBytes());
-        buffer.put((this.getMinecraftServerPort() + "\0").getBytes());
-
-        buffer.put("hostip\0".getBytes());
-        buffer.put((this.getMinecraftServerIp() + "\0").getBytes());
-
-        buffer.put((byte)0x00);
-
-        buffer.put(new byte[] {0x01, 0x70, 0x6C, 0x61, 0x79, 0x65, 0x72, 0x5F, 0x00, 0x00});
-
-        this.server.configManager.playerEntities.forEach((player) -> {
-            System.out.println(player.getPlayerName());
-            buffer.put((player.getPlayerName() + "\0").getBytes(StandardCharsets.UTF_8));
-        });
-
-
-        buffer.put((byte)0x00);
-
-        //only return written length as byte array
-        byte[] response = new byte[buffer.position()];
-        ((Buffer) buffer).rewind();
-        buffer.get(response);
-        return response;
+        return new ClientBoundFullStatPacket(
+                packet.getSessionId(),
+                this.server.getMotd(),
+                "SMP",
+                "MINECRAFT",
+                "Beta 1.7",
+                "FoxLoader",
+                "world",
+                this.server.configManager.playersOnline(),
+                this.server.configManager.getMaxPlayers(),
+                this.getMinecraftServerPort(),
+                this.getMinecraftServerIp(),
+                this.server.configManager.playerEntities.stream().map(NetworkPlayer::getPlayerName).toArray(String[]::new)
+        );
     }
 
     private int getMinecraftServerPort() {

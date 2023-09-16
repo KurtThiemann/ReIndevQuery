@@ -22,7 +22,7 @@ public class QueryModServer extends QueryMod implements ServerMod {
         boolean queryEnabled = props.getBooleanProperty("enable-query", false);
 
         if (!queryEnabled) {
-            getLogger().info("Query server disabled");
+            getLogger().info("Query server is disabled");
             return;
         }
 
@@ -33,7 +33,8 @@ public class QueryModServer extends QueryMod implements ServerMod {
         if (queryAddressString.length() > 0) {
             try {
                 inetAddress = InetAddress.getByName(queryAddressString);
-            } catch (UnknownHostException ignore) {}
+            } catch (UnknownHostException ignore) {
+            }
         }
 
         try {
