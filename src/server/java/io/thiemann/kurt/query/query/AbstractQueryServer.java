@@ -1,9 +1,6 @@
 package io.thiemann.kurt.query.query;
 
-import com.fox2code.foxloader.network.NetworkPlayer;
 import io.thiemann.kurt.query.query.packet.*;
-import net.minecraft.server.MinecraftServer;
-
 import java.io.IOException;
 import java.net.*;
 import java.util.Map;
