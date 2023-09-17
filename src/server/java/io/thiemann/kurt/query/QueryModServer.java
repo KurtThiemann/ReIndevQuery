@@ -1,5 +1,6 @@
 package io.thiemann.kurt.query;
 
+import com.fox2code.foxloader.loader.ModLoader;
 import io.thiemann.kurt.query.query.QueryServer;
 import com.fox2code.foxloader.loader.ServerMod;
 import com.fox2code.foxloader.network.NetworkPlayer;
