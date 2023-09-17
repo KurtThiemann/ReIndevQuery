@@ -31,13 +31,13 @@ public class ClientBoundBasicStatPacket extends ClientBoundPacket {
         ByteBuffer buffer = ByteBuffer.allocate(1024);
         buffer.order(ByteOrder.LITTLE_ENDIAN);
 
-        buffer.put((this.motd + "\0").getBytes(StandardCharsets.UTF_8));
-        buffer.put((this.gameType + "\0").getBytes(StandardCharsets.UTF_8));
-        buffer.put((this.map + "\0").getBytes(StandardCharsets.UTF_8));
-        buffer.put((this.playersOnline + "\0").getBytes(StandardCharsets.UTF_8));
-        buffer.put((this.maxPlayers + "\0").getBytes(StandardCharsets.UTF_8));
+        buffer.put(this.encodeString(this.motd));
+        buffer.put(this.encodeString(this.gameType));
+        buffer.put(this.encodeString(this.map));
+        buffer.put(this.encodeString(Integer.toString(this.playersOnline)));
+        buffer.put(this.encodeString(Integer.toString(this.maxPlayers)));
         buffer.putShort((short) this.port);
-        buffer.put((this.host + "\0").getBytes(StandardCharsets.UTF_8));
+        buffer.put(this.encodeString(this.host));
 
         //only return written length as byte array
         byte[] response = new byte[buffer.position()];

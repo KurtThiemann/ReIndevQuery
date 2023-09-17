@@ -2,6 +2,7 @@ package io.thiemann.kurt.query.query.packet;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 
 public abstract class ClientBoundPacket {
     private final PacketType type;
@@ -22,6 +23,10 @@ public abstract class ClientBoundPacket {
     }
 
     protected abstract byte[] serializePayload();
+
+    protected byte[] encodeString(String s) {
+        return (s.replace("\0", "") + "\0").getBytes(StandardCharsets.UTF_8);
+    }
 
     public byte[] serialize() {
         byte[] payload = serializePayload();

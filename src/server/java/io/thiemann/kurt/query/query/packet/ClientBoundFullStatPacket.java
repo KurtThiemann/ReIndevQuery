@@ -34,8 +34,8 @@ public class ClientBoundFullStatPacket extends ClientBoundPacket {
     }
 
     private void putKV(String key, String value, ByteBuffer buffer) {
-        buffer.put((key + "\0").getBytes(StandardCharsets.UTF_8));
-        buffer.put((value + "\0").getBytes(StandardCharsets.UTF_8));
+        buffer.put(this.encodeString(key));
+        buffer.put(this.encodeString(value));
     }
 
     @Override
@@ -58,7 +58,7 @@ public class ClientBoundFullStatPacket extends ClientBoundPacket {
         buffer.put(new byte[]{0x01, 0x70, 0x6C, 0x61, 0x79, 0x65, 0x72, 0x5F, 0x00, 0x00});
 
         for (String player : this.players) {
-            buffer.put((player + "\0").getBytes(StandardCharsets.UTF_8));
+            buffer.put(this.encodeString(player));
         }
         buffer.put((byte) 0);
 

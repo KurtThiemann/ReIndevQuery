@@ -15,6 +15,7 @@ public abstract class AbstractQueryServer {
 
     public AbstractQueryServer(int port, InetAddress laddr) throws SocketException {
         this.socket = new DatagramSocket(port, laddr);
+        this.socket.setSoTimeout(5000);
         this.thread = new Thread(this::run);
         this.thread.start();
 
