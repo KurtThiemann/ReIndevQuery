@@ -1,9 +1,8 @@
 package io.thiemann.kurt.query;
 
-import com.fox2code.foxloader.loader.ModLoader;
-import io.thiemann.kurt.query.query.QueryServer;
 import com.fox2code.foxloader.loader.ServerMod;
 import com.fox2code.foxloader.network.NetworkPlayer;
+import io.thiemann.kurt.query.query.QueryServer;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.src.server.PropertyManager;
 
@@ -42,6 +41,7 @@ public class QueryModServer extends QueryMod implements ServerMod {
             this.queryServer = new QueryServer(server, queryPort, inetAddress);
         } catch (SocketException e) {
             getLogger().warning("Failed to start query server on " + queryAddressString + ":" + queryPort);
+            return;
         }
 
         getLogger().info("Query server started on " + queryAddressString + ":" + queryPort);

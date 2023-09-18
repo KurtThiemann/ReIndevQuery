@@ -2,7 +2,6 @@ package io.thiemann.kurt.query.query.packet;
 
 import java.nio.Buffer;
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 
 public class ClientBoundFullStatPacket extends ClientBoundPacket {
 

@@ -5,7 +5,9 @@ import com.fox2code.foxloader.loader.ModContainer;
 import com.fox2code.foxloader.loader.ModLoader;
 import com.fox2code.foxloader.network.NetworkPlayer;
 import net.minecraft.server.MinecraftServer;
-import java.net.*;
+
+import java.net.InetAddress;
+import java.net.SocketException;
 import java.util.Collection;
 
 

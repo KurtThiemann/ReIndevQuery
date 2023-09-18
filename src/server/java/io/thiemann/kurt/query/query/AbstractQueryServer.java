@@ -1,6 +1,7 @@
 package io.thiemann.kurt.query.query;
 
 import io.thiemann.kurt.query.query.packet.*;
+
 import java.io.IOException;
 import java.net.*;
 import java.util.Map;
