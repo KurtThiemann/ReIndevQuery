@@ -27,21 +27,24 @@ public class ClientBoundBasicStatPacket extends ClientBoundPacket {
 
     @Override
     protected byte[] serializePayload() {
-        ByteBuffer buffer = ByteBuffer.allocate(1024);
+        byte[] motd = this.encodeString(this.motd);
+        byte[] gameType = this.encodeString(this.gameType);
+        byte[] map = this.encodeString(this.map);
+        byte[] playersOnline = this.encodeString(Integer.toString(this.playersOnline));
+        byte[] maxPlayers = this.encodeString(Integer.toString(this.maxPlayers));
+        byte[] host = this.encodeString(this.host);
+
+        ByteBuffer buffer = ByteBuffer.allocate(motd.length + gameType.length + map.length + playersOnline.length + maxPlayers.length + 2 + host.length);
         buffer.order(ByteOrder.LITTLE_ENDIAN);
 
-        buffer.put(this.encodeString(this.motd));
-        buffer.put(this.encodeString(this.gameType));
-        buffer.put(this.encodeString(this.map));
-        buffer.put(this.encodeString(Integer.toString(this.playersOnline)));
-        buffer.put(this.encodeString(Integer.toString(this.maxPlayers)));
+        buffer.put(motd);
+        buffer.put(gameType);
+        buffer.put(map);
+        buffer.put(playersOnline);
+        buffer.put(maxPlayers);
         buffer.putShort((short) this.port);
-        buffer.put(this.encodeString(this.host));
+        buffer.put(host);
 
-        //only return written length as byte array
-        byte[] response = new byte[buffer.position()];
-        ((Buffer) buffer).rewind();
-        buffer.get(response);
-        return response;
+        return buffer.array();
     }
 }

@@ -2,6 +2,8 @@ package io.thiemann.kurt.query.query.packet;
 
 import java.nio.Buffer;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
 
 public class ClientBoundFullStatPacket extends ClientBoundPacket {
 
@@ -32,38 +34,47 @@ public class ClientBoundFullStatPacket extends ClientBoundPacket {
         this.players = players;
     }
 
-    private void putKV(String key, String value, ByteBuffer buffer) {
-        buffer.put(this.encodeString(key));
-        buffer.put(this.encodeString(value));
+    private void putKV(String key, String value, List<byte[]> target) {
+        target.add(this.encodeString(key));
+        target.add(this.encodeString(value));
     }
 
     @Override
     protected byte[] serializePayload() {
-        ByteBuffer buffer = ByteBuffer.allocate(1024);
+        List<byte[]> kv = new ArrayList<>();
+        this.putKV("hostname", this.hostName, kv);
+        this.putKV("gametype", this.gameType, kv);
+        this.putKV("game_id", this.gameId, kv);
+        this.putKV("version", this.version, kv);
+        this.putKV("plugins", this.plugins, kv);
+        this.putKV("map", this.map, kv);
+        this.putKV("numplayers", String.valueOf(this.numPlayers), kv);
+        this.putKV("maxplayers", String.valueOf(this.maxPlayers), kv);
+        this.putKV("hostport", String.valueOf(this.port), kv);
+        this.putKV("hostip", this.hostIp, kv);
+
+        List<byte[]> players = new ArrayList<>();
+        for (String player : this.players) {
+            players.add(this.encodeString(player));
+        }
+
+        int length = 11 + kv.stream().mapToInt(b -> b.length).sum() + 11 + players.stream().mapToInt(b -> b.length).sum() + 1;
+        ByteBuffer buffer = ByteBuffer.allocate(length);
         buffer.put(new byte[]{0x73, 0x70, 0x6C, 0x69, 0x74, 0x6E, 0x75, 0x6D, 0x00, (byte) 0x80, 0x00});
 
-        this.putKV("hostname", this.hostName, buffer);
-        this.putKV("gametype", this.gameType, buffer);
-        this.putKV("game_id", this.gameId, buffer);
-        this.putKV("version", this.version, buffer);
-        this.putKV("plugins", this.plugins, buffer);
-        this.putKV("map", this.map, buffer);
-        this.putKV("numplayers", String.valueOf(this.numPlayers), buffer);
-        this.putKV("maxplayers", String.valueOf(this.maxPlayers), buffer);
-        this.putKV("hostport", String.valueOf(this.port), buffer);
-        this.putKV("hostip", this.hostIp, buffer);
+        for (byte[] b : kv) {
+            buffer.put(b);
+        }
+
         buffer.put((byte) 0);
 
         buffer.put(new byte[]{0x01, 0x70, 0x6C, 0x61, 0x79, 0x65, 0x72, 0x5F, 0x00, 0x00});
 
-        for (String player : this.players) {
-            buffer.put(this.encodeString(player));
+        for (byte[] b : players) {
+            buffer.put(b);
         }
         buffer.put((byte) 0);
 
-        byte[] response = new byte[buffer.position()];
-        ((Buffer) buffer).rewind();
-        buffer.get(response);
-        return response;
+        return buffer.array();
     }
 }
